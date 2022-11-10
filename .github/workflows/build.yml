@@ -106,7 +106,7 @@ jobs:
       with:
         token: ${{ github.token }}
         tag: ${{ github.ref_name }}
-        writeToFile: true
+        writeToFile: false
 
     - name: Update GitHub Release
       uses: ncipollo/release-action@v1
