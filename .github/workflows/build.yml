@@ -32,7 +32,6 @@ jobs:
           echo "REL_VERSION=v$BASE_DEV_VERSION-dev.$GITHUB_RUN_NUMBER" >> $GITHUB_ENV
           echo "REL_VERSION_STRICT=$BASE_DEV_VERSION-dev.$GITHUB_RUN_NUMBER" >> $GITHUB_ENV
         fi
-
     - name: Disable DEV Flag + Set Version
       run: |
         sudo apt-get install jq -y
@@ -40,23 +39,39 @@ jobs:
         jq --arg vs "$REL_VERSION_STRICT" -r '. + {dev:false, version:$vs}' pkg-temp.json > package.json
         rm pkg-temp.json
         cat package.json
+    - name: Login to DockerHub
+      uses: docker/login-action@v1
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v1
+      with:
+        registry: ghcr.io
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Build and push Docker images
       uses: docker/build-push-action@v2.9.0
       with:
         context: .
         file: dev/build/Dockerfile
-
+        push: true
+        tags: |
+          davidflypei/wiki:canary
+          davidflypei/wiki:canary-${{ env.REL_VERSION_STRICT }}
+          ghcr.io/davidflypei/wiki:canary
+          ghcr.io/davidflypei/wiki:canary-${{ env.REL_VERSION_STRICT }}
     - name: Extract compiled files
       run: |
         mkdir -p _dist
-        docker create --name wiki ghcr.io/requarks/wiki:canary-$REL_VERSION_STRICT
+        docker create --name wiki ghcr.io/davidflypei/wiki:canary-$REL_VERSION_STRICT
         docker cp wiki:/wiki _dist
         docker rm wiki
         rm _dist/wiki/config.yml
         cp ./config.sample.yml _dist/wiki/config.sample.yml
         find _dist/wiki/ -printf "%P\n" | tar -czf wiki-js.tar.gz --no-recursion -C _dist/wiki/ -T -
-
     - name: Upload a Build Artifact
       uses: actions/upload-artifact@v2.3.1
       with:
@@ -84,7 +99,6 @@ jobs:
           echo "Using BRANCH mode: v$BASE_DEV_VERSION-dev.$GITHUB_RUN_NUMBER"
           echo "REL_VERSION_STRICT=$BASE_DEV_VERSION-dev.$GITHUB_RUN_NUMBER" >> $GITHUB_ENV
         fi
-
     - name: Run Tests
       env:
         MATRIXENV: ${{ matrix.dbtype }}
@@ -93,7 +107,6 @@ jobs:
         chmod u+x dev/cypress/ci-setup.sh
         dev/cypress/ci-setup.sh
         docker run --name cypress --ipc=host --shm-size 1G -v $GITHUB_WORKSPACE:/e2e -w /e2e cypress/included:4.9.0 --record --key "$CYPRESS_KEY" --headless --group "$MATRIXENV" --ci-build-id "$REL_VERSION_STRICT-run$GITHUB_RUN_NUMBER.$GITHUB_RUN_ATTEMPT" --tag "$REL_VERSION_STRICT" --config baseUrl=http://172.17.0.1:3000
-
   arm:
     name: ARM Build
     runs-on: ubuntu-latest
@@ -121,7 +134,6 @@ jobs:
           echo "Using BRANCH mode: v$BASE_DEV_VERSION-dev.$GITHUB_RUN_NUMBER"
           echo "REL_VERSION_STRICT=$BASE_DEV_VERSION-dev.$GITHUB_RUN_NUMBER" >> $GITHUB_ENV
         fi
-
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v1
 
@@ -151,7 +163,6 @@ jobs:
       run: |
         mkdir -p build
         tar -xzf $GITHUB_WORKSPACE/drop/wiki-js.tar.gz -C $GITHUB_WORKSPACE/build --exclude=node_modules
-
     - name: Build and push Docker images
       uses: docker/build-push-action@v2.9.0
       with:
@@ -160,9 +171,8 @@ jobs:
         platforms: ${{ matrix.platform }}
         push: true
         tags: |
-          requarks/wiki:canary-${{ matrix.docker }}-${{ env.REL_VERSION_STRICT }}
-          ghcr.io/requarks/wiki:canary-${{ matrix.docker }}-${{ env.REL_VERSION_STRICT }}
-
+          davidflypei/wiki:canary-${{ matrix.docker }}-${{ env.REL_VERSION_STRICT }}
+          ghcr.io/davidflypei/wiki:canary-${{ matrix.docker }}-${{ env.REL_VERSION_STRICT }}
   windows:
     name: Windows Build
     runs-on: windows-latest
@@ -172,7 +182,7 @@ jobs:
     - name: Setup Node.js environment
       uses: actions/setup-node@v2.5.1
       with:
-        node-version: 12.x
+        node-version: 16.x
 
     - name: Download a Build Artifact
       uses: actions/download-artifact@v2.1.0
@@ -184,7 +194,6 @@ jobs:
       run: |
         mkdir -p win
         tar -xzf $env:GITHUB_WORKSPACE\drop\wiki-js.tar.gz -C $env:GITHUB_WORKSPACE\win --exclude=node_modules
-
     - name: Install Dependencies
       run: yarn --production --frozen-lockfile --non-interactive
       working-directory: win
@@ -211,7 +220,6 @@ jobs:
       run: |
         echo "Using TAG mode: $GITHUB_REF_NAME"
         echo "REL_VERSION_STRICT=${GITHUB_REF_NAME#?}" >> $GITHUB_ENV
-
     - name: Login to DockerHub
       uses: docker/login-action@v1
       with:
@@ -228,15 +236,11 @@ jobs:
     - name: Create and Push Manifests
       run: |
         echo "Creating the manifests..."
-
-        docker manifest create requarks/wiki:beta-$REL_VERSION_STRICT requarks/wiki:canary-$REL_VERSION_STRICT requarks/wiki:canary-arm64-$REL_VERSION_STRICT requarks/wiki:canary-armv7-$REL_VERSION_STRICT
-        docker manifest create ghcr.io/requarks/wiki:beta-$REL_VERSION_STRICT ghcr.io/requarks/wiki:canary-$REL_VERSION_STRICT ghcr.io/requarks/wiki:canary-arm64-$REL_VERSION_STRICT ghcr.io/requarks/wiki:canary-armv7-$REL_VERSION_STRICT
-
+        docker manifest create davidflypei/wiki:beta-$REL_VERSION_STRICT davidflypei/wiki:canary-$REL_VERSION_STRICT davidflypei/wiki:canary-arm64-$REL_VERSION_STRICT davidflypei/wiki:canary-armv7-$REL_VERSION_STRICT
+        docker manifest create ghcr.io/davidflypei/wiki:beta-$REL_VERSION_STRICT ghcr.io/davidflypei/wiki:canary-$REL_VERSION_STRICT ghcr.io/davidflypei/wiki:canary-arm64-$REL_VERSION_STRICT ghcr.io/davidflypei/wiki:canary-armv7-$REL_VERSION_STRICT
         echo "Pushing the manifests..."
-
-        docker manifest push -p requarks/wiki:beta-$REL_VERSION_STRICT
-        docker manifest push -p ghcr.io/requarks/wiki:beta-$REL_VERSION_STRICT
-
+        docker manifest push -p davidflypei/wiki:beta-$REL_VERSION_STRICT
+        docker manifest push -p ghcr.io/davidflypei/wiki:beta-$REL_VERSION_STRICT
   release:
     name: Publish Release Images
     runs-on: ubuntu-latest
@@ -252,7 +256,6 @@ jobs:
       run: |
         echo "Using TAG mode: $GITHUB_REF_NAME"
         echo "REL_VERSION_STRICT=${GITHUB_REF_NAME#?}" >> $GITHUB_ENV
-
     - name: Login to DockerHub
       uses: docker/login-action@v1
       with:
@@ -265,39 +268,6 @@ jobs:
         registry: ghcr.io
         username: ${{ github.repository_owner }}
         password: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Create and Push Manifests
-      run: |
-        echo "Fetching semver tool..."
-        curl -LJO https://static.requarks.io/semver
-        chmod +x semver
-
-        MAJOR=`./semver get major $REL_VERSION_STRICT`
-        MINOR=`./semver get minor $REL_VERSION_STRICT`
-        MAJORMINOR="$MAJOR.$MINOR"
-
-        echo "Using major $MAJOR and minor $MINOR..."
-        echo "Creating the manifests..."
-
-        docker manifest create requarks/wiki:$REL_VERSION_STRICT requarks/wiki:canary-$REL_VERSION_STRICT requarks/wiki:canary-arm64-$REL_VERSION_STRICT requarks/wiki:canary-armv7-$REL_VERSION_STRICT
-        docker manifest create requarks/wiki:$MAJOR requarks/wiki:canary-$REL_VERSION_STRICT requarks/wiki:canary-arm64-$REL_VERSION_STRICT requarks/wiki:canary-armv7-$REL_VERSION_STRICT
-        docker manifest create requarks/wiki:$MAJORMINOR requarks/wiki:canary-$REL_VERSION_STRICT requarks/wiki:canary-arm64-$REL_VERSION_STRICT requarks/wiki:canary-armv7-$REL_VERSION_STRICT
-        docker manifest create requarks/wiki:latest requarks/wiki:canary-$REL_VERSION_STRICT requarks/wiki:canary-arm64-$REL_VERSION_STRICT requarks/wiki:canary-armv7-$REL_VERSION_STRICT
-        docker manifest create ghcr.io/requarks/wiki:$REL_VERSION_STRICT ghcr.io/requarks/wiki:canary-$REL_VERSION_STRICT ghcr.io/requarks/wiki:canary-arm64-$REL_VERSION_STRICT ghcr.io/requarks/wiki:canary-armv7-$REL_VERSION_STRICT
-        docker manifest create ghcr.io/requarks/wiki:$MAJOR ghcr.io/requarks/wiki:canary-$REL_VERSION_STRICT ghcr.io/requarks/wiki:canary-arm64-$REL_VERSION_STRICT ghcr.io/requarks/wiki:canary-armv7-$REL_VERSION_STRICT
-        docker manifest create ghcr.io/requarks/wiki:$MAJORMINOR ghcr.io/requarks/wiki:canary-$REL_VERSION_STRICT ghcr.io/requarks/wiki:canary-arm64-$REL_VERSION_STRICT ghcr.io/requarks/wiki:canary-armv7-$REL_VERSION_STRICT
-        docker manifest create ghcr.io/requarks/wiki:latest ghcr.io/requarks/wiki:canary-$REL_VERSION_STRICT ghcr.io/requarks/wiki:canary-arm64-$REL_VERSION_STRICT ghcr.io/requarks/wiki:canary-armv7-$REL_VERSION_STRICT
-
-        echo "Pushing the manifests..."
-
-        docker manifest push -p requarks/wiki:$REL_VERSION_STRICT
-        docker manifest push -p requarks/wiki:$MAJOR
-        docker manifest push -p requarks/wiki:$MAJORMINOR
-        docker manifest push -p requarks/wiki:latest
-        docker manifest push -p ghcr.io/requarks/wiki:$REL_VERSION_STRICT
-        docker manifest push -p ghcr.io/requarks/wiki:$MAJOR
-        docker manifest push -p ghcr.io/requarks/wiki:$MAJORMINOR
-        docker manifest push -p ghcr.io/requarks/wiki:latest
 
     - name: Download Linux Build
       uses: actions/download-artifact@v2.1.0
@@ -328,7 +298,7 @@ jobs:
         body: ${{ steps.changelog.outputs.changes }}
         token: ${{ github.token }}
         artifacts: 'drop/wiki-js.tar.gz,drop-win/wiki-js-windows.tar.gz'
-        
+
     - name: Notify Slack Releases Channel
       uses: slackapi/slack-github-action@v1.18.0
       with:
@@ -339,7 +309,7 @@ jobs:
       env:
         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
-        
+
     - name: Notify Telegram Channel
       uses: appleboy/telegram-action@v0.1.1
       with:
@@ -350,12 +320,11 @@ jobs:
         message: |
           Wiki.js *${{ github.ref_name }}* has been released!
           See [release notes](https://github.com/requarks/wiki/releases) for details.
-          
     - name: Notify Discord Channel
       uses: sebastianpopp/discord-action@v1.0
       with:
         webhook: ${{ secrets.DISCORD_WEBHOOK }}
-        message: Wiki.js ${{ github.ref_name }} has been released! See https://github.com/requarks/wiki/releases for details.
+        message: Wiki.js ${{ github.ref_name }} has been released! See https://github.com/davidflypei/wiki/releases for details.
 
   build-do-image:
     name: Build DigitalOcean Image
@@ -369,13 +338,11 @@ jobs:
       run: |
         echo "Using TAG mode: $GITHUB_REF_NAME"
         echo "REL_VERSION_STRICT=${GITHUB_REF_NAME#?}" >> $GITHUB_ENV
-
     - name: Install Packer
       run: |
         curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
         sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
         sudo apt-get update && sudo apt-get install packer
-
     - name: Build Droplet Image
       env:
         DIGITALOCEAN_API_TOKEN: ${{ secrets.DO_TOKEN }}
