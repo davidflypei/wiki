@@ -71,7 +71,6 @@ jobs:
         name: drop
         path: wiki-js.tar.gz
 
-
   release:
     name: Publish Release Images
     runs-on: ubuntu-latest
@@ -107,7 +106,7 @@ jobs:
       with:
         token: ${{ github.token }}
         tag: ${{ github.ref_name }}
-        writeToFile: false
+        writeToFile: true
 
     - name: Update GitHub Release
       uses: ncipollo/release-action@v1
