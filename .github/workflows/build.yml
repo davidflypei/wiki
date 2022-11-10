@@ -71,102 +71,11 @@ jobs:
         name: drop
         path: wiki-js.tar.gz
 
-  arm:
-    name: ARM Build
-    runs-on: ubuntu-latest
-    permissions:
-      packages: write
-
-    strategy:
-      matrix:
-        include:
-          - platform: linux/arm64
-            docker: arm64
-          - platform: linux/arm/v7
-            docker: armv7
-
-    steps:
-    - uses: actions/checkout@v2
-
-    - name: Set Version Variables
-      run: |
-        if [[ "$GITHUB_REF" =~ ^refs/tags/v* ]]; then
-          echo "Using TAG mode: $GITHUB_REF_NAME"
-          echo "REL_VERSION_STRICT=${GITHUB_REF_NAME#?}" >> $GITHUB_ENV
-        else
-          echo "Using BRANCH mode: v$BASE_DEV_VERSION-dev.$GITHUB_RUN_NUMBER"
-          echo "REL_VERSION_STRICT=$BASE_DEV_VERSION-dev.$GITHUB_RUN_NUMBER" >> $GITHUB_ENV
-        fi
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@v1
-
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v1
-
-    - name: Login to GitHub Container Registry
-      uses: docker/login-action@v1
-      with:
-        registry: ghcr.io
-        username: ${{ github.repository_owner }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Download a Build Artifact
-      uses: actions/download-artifact@v2.1.0
-      with:
-        name: drop
-        path: drop
-
-    - name: Extract Build
-      run: |
-        mkdir -p build
-        tar -xzf $GITHUB_WORKSPACE/drop/wiki-js.tar.gz -C $GITHUB_WORKSPACE/build --exclude=node_modules
-    - name: Build and push Docker images
-      uses: docker/build-push-action@v2.9.0
-      with:
-        context: .
-        file: dev/build-arm/Dockerfile
-        platforms: ${{ matrix.platform }}
-        push: true
-        tags: |
-          ghcr.io/davidflypei/wiki:canary-${{ matrix.docker }}-${{ env.REL_VERSION_STRICT }}
-  windows:
-    name: Windows Build
-    runs-on: windows-latest
-
-    steps:
-    - name: Setup Node.js environment
-      uses: actions/setup-node@v2.5.1
-      with:
-        node-version: 16.x
-
-    - name: Download a Build Artifact
-      uses: actions/download-artifact@v2.1.0
-      with:
-        name: drop
-        path: drop
-
-    - name: Extract Build
-      run: |
-        mkdir -p win
-        tar -xzf $env:GITHUB_WORKSPACE\drop\wiki-js.tar.gz -C $env:GITHUB_WORKSPACE\win --exclude=node_modules
-    - name: Install Dependencies
-      run: yarn --production --frozen-lockfile --non-interactive
-      working-directory: win
-
-    - name: Create Bundle
-      run: tar -czf wiki-js-windows.tar.gz -C $env:GITHUB_WORKSPACE\win .
-
-    - name: Upload a Build Artifact
-      uses: actions/upload-artifact@v2.3.1
-      with:
-        name: drop-win
-        path: wiki-js-windows.tar.gz
-
   beta:
     name: Publish Beta Images
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build, arm, windows]
+    needs: [build]
     permissions:
       packages: write
 
@@ -191,7 +100,7 @@ jobs:
     - name: Create and Push Manifests
       run: |
         echo "Creating the manifests..."
-        docker manifest create ghcr.io/davidflypei/wiki:beta-$REL_VERSION_STRICT ghcr.io/davidflypei/wiki:canary-$REL_VERSION_STRICT ghcr.io/davidflypei/wiki:canary-arm64-$REL_VERSION_STRICT ghcr.io/davidflypei/wiki:canary-armv7-$REL_VERSION_STRICT
+        docker manifest create ghcr.io/davidflypei/wiki:beta-$REL_VERSION_STRICT
         echo "Pushing the manifests..."
         docker manifest push -p ghcr.io/davidflypei/wiki:beta-$REL_VERSION_STRICT
   release:
@@ -223,12 +132,6 @@ jobs:
         name: drop
         path: drop
 
-    - name: Download Windows Build
-      uses: actions/download-artifact@v2.1.0
-      with:
-        name: drop-win
-        path: drop-win
-
     - name: Generate Changelog
       id: changelog
       uses: Requarks/changelog-action@v1
@@ -245,4 +148,4 @@ jobs:
         name: ${{ github.ref_name }}
         body: ${{ steps.changelog.outputs.changes }}
         token: ${{ github.token }}
-        artifacts: 'drop/wiki-js.tar.gz,drop-win/wiki-js-windows.tar.gz'
+        artifacts: 'drop/wiki-js.tar.gz'
