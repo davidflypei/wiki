@@ -309,7 +309,7 @@ export default {
       this.checkTreeDefaultOpen(this.treeItems, 0);
     },
     async checkTreeDefaultOpen(items){
-      const item = items.find(item => item.children && this.path.startsWith(item.path))
+      const item = items.find(item => item.children && (this.path.startsWith(item.path + '/') || this.path + '/' === item.path + '/'))
       if(item) {
         setTimeout(()=>{
           this.treeDefaultOpen.push(item.id)
