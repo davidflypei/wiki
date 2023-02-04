@@ -53,6 +53,7 @@ jobs:
         context: .
         file: dev/build/Dockerfile
         push: true
+        provenance: false
         tags: |
           ghcr.io/davidflypei/wiki:canary
           ghcr.io/davidflypei/wiki:canary-${{ env.REL_VERSION_STRICT }}
