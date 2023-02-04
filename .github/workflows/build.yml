@@ -53,7 +53,6 @@ jobs:
         context: .
         file: dev/build/Dockerfile
         push: true
-        provenance: false
         tags: |
           ghcr.io/davidflypei/wiki:canary
           ghcr.io/davidflypei/wiki:canary-${{ env.REL_VERSION_STRICT }}
@@ -110,10 +109,11 @@ jobs:
         writeToFile: false
 
     - name: Update GitHub Release
-      uses: ncipollo/release-action@v1
+      uses: ncipollo/release-action@v1.12.0
       with:
         allowUpdates: true
         draft: false
+        makeLatest: true
         name: ${{ github.ref_name }}
         body: ${{ steps.changelog.outputs.changes }}
         token: ${{ github.token }}
