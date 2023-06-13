@@ -70,7 +70,7 @@
         v-icon(v-else) mdi-folder
       template(v-slot:label="{ item }")
         div(class='tree-item')
-          a(v-if="item.pageId" :href="'/'+item.locale+'/'+item.path")
+          a(v-if="item.pageId !== null" :href="'/'+item.locale+'/'+item.path")
             span {{item.name}}
           span(v-else) {{item.name}}
     //-> Browse
