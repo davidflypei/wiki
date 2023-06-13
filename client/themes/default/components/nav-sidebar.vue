@@ -57,7 +57,6 @@
     v-treeview(
       v-else-if='currentMode === `tree`'
       activatable
-      open-on-click
       :color='"white"'
       :active='treeDefaultActive'
       :open='treeDefaultOpen'
@@ -71,7 +70,7 @@
         v-icon(v-else) mdi-folder
       template(v-slot:label="{ item }")
         div(class='tree-item')
-          a(v-if="!item.children" :href="'/'+item.locale+'/'+item.path")
+          a(v-if="item.pageId" :href="'/'+item.locale+'/'+item.path")
             span {{item.name}}
           span(v-else) {{item.name}}
     //-> Browse
@@ -136,7 +135,7 @@ export default {
       loadedCache: [],
       treeItems: [],
       treeDefaultOpen: [],
-      treeDefaultActive: [],
+      treeDefaultActive: []
     }
   },
   computed: {
@@ -151,7 +150,7 @@ export default {
         this.loadFromCurrentPath()
       }
       if (mode === 'tree') {
-        this.fetchTreeRoot();
+        this.fetchTreeRoot()
       }
     },
     async fetchBrowseItems (item) {
@@ -257,7 +256,7 @@ export default {
     goHome () {
       window.location.assign(siteLangs.length > 0 ? `/${this.locale}/home` : '/')
     },
-    pageItem2TreeItem(item,level) {
+    pageItem2TreeItem(item, level) {
       if (item.isFolder) {
         return { id: item.id, level: level, pageId: item.pageId, path: item.path, locale: item.locale, name: item.title, children: [] }
       } else {
@@ -266,25 +265,25 @@ export default {
     },
     activeTreeItem(id) {
       const find = (items) => {
-        for(const item of items) {
-          if(item.id == id) {
+        for (const item of items) {
+          if (item.id === id) {
             return item
           }
-          if(item.children && item.children.length) {
+          if (item.children && item.children.length) {
             const v = find(item.children)
-            if(v) {
+            if (v) {
               return v
             }
           }
         }
       }
       const item = find(this.treeItems)
-      if(item) {
-        if(!this.treeDefaultActive.includes(item.id)) {
+      if (item) {
+        if (!this.treeDefaultActive.includes(item.id)) {
           location.href = `/${item.locale}/${item.path}`
         } else {
           setTimeout(() => {
-            const el = document.querySelector(".v-treeview-node--active")
+            const el = document.querySelector('.v-treeview-node--active')
             el.scrollIntoViewIfNeeded()
           })
         }
@@ -293,30 +292,25 @@ export default {
     async fetchTreeChild(parent) {
       const items = await this.fetchPages(parent.id)
       parent.children = []
-      if(parent.pageId){
-        parent.children.push({
-          id: parent.pageId,level: parent.level+1, path: parent.path, locale: parent.locale, name: parent.name
-        })
-      }
       parent.children.push(
-        ...items.map(item => this.pageItem2TreeItem(item, parent.level+1))
+        ...items.map(item => this.pageItem2TreeItem(item, parent.level + 1))
       )
-      this.checkTreeDefaultOpen(parent.children);
+      this.checkTreeDefaultOpen(parent.children)
     },
-    async fetchTreeRoot(){
+    async fetchTreeRoot() {
       const children = await this.fetchPages(0)
       this.treeItems = children.map(item => this.pageItem2TreeItem(item, 0))
-      this.checkTreeDefaultOpen(this.treeItems, 0);
+      this.checkTreeDefaultOpen(this.treeItems, 0)
     },
-    async checkTreeDefaultOpen(items){
+    async checkTreeDefaultOpen(items) {
       const item = items.find(item => item.children && (this.path.startsWith(item.path + '/') || this.path + '/' === item.path + '/'))
-      if(item) {
-        setTimeout(()=>{
+      if (item) {
+        setTimeout(() => {
           this.treeDefaultOpen.push(item.id)
         })
       }
-      const active = items.find(item => item.path == this.path)
-      if(active) {
+      const active = items.find(item => item.path === this.path)
+      if (active) {
         this.treeDefaultActive.push(active.id)
       }
     },
@@ -344,7 +338,7 @@ export default {
         }
       })
       return _.get(resp, 'data.pages.tree', [])
-    },
+    }
   },
   mounted () {
     this.currentParent.title = `/ ${this.$t('common:sidebar.root')}`
@@ -360,8 +354,8 @@ export default {
     if (this.currentMode === 'browse') {
       this.loadFromCurrentPath()
     }
-    if (this.currentMode === "tree") {
-      this.fetchTreeRoot();
+    if (this.currentMode === 'tree') {
+      this.fetchTreeRoot()
     }
   }
 }
